@@ -1,20 +1,21 @@
 (function() {
-    // 请替换为您的 Supabase 项目 URL 和 anon key
     const SUPABASE_URL = 'https://efrcqpwusyrcyoaksnzm.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_Oj-ZUw0Mb9wQNM9i6fmmuA_HEtg4Ws9';
 
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentUser = null;
-    let userTeams = [];
-    let allTeams = [];
-    let tickets = [];
+    let userTeams = [];           // 当前用户已加入的团队
+    let allTeams = [];            // 所有团队（用于下拉选择）
+    let tickets = [];             // 所属团队的工单（用于团队工单页）
+    let myTickets = [];           // 当前用户创建的工单（用于我的工单页）
     let activeTab = 'tickets';
     let authView = 'login';
     let easyMDEditor = null;
     let selectedTeamId = null;
     let selectedTicketId = null;
     let modalState = null;
+    let closedTicketsExpanded = {};
 
     const appEl = document.getElementById('app-content');
 
@@ -48,31 +49,27 @@
                 .order('created_at', { ascending: false });
             if (error) throw error;
 
-            // 并行获取每个团队的创建者用户名和成员数
-            const enhancedTeams = await Promise.all((teams || []).map(async (team) => {
+            const enhanced = await Promise.all((teams || []).map(async (team) => {
                 let creatorName = '未知';
                 if (team.created_by) {
-                    const { data: creatorProfile } = await supabase
+                    const { data: profile } = await supabase
                         .from('profiles')
                         .select('username')
                         .eq('user_id', team.created_by)
                         .maybeSingle();
-                    creatorName = creatorProfile?.username || '未知';
+                    creatorName = profile?.username || '未知';
                 }
-
-                const { count, error: countError } = await supabase
+                const { count } = await supabase
                     .from('team_members')
                     .select('*', { count: 'exact', head: true })
                     .eq('team_id', team.id);
-
                 return {
                     ...team,
                     creator_name: creatorName,
                     member_count: count || 0
                 };
             }));
-
-            return enhancedTeams;
+            return enhanced;
         } catch (err) {
             console.error('获取所有团队失败', err);
             return [];
@@ -91,46 +88,31 @@
 
             let creatorName = '未知';
             if (team.created_by) {
-                const { data: creatorProfile } = await supabase
+                const { data: profile } = await supabase
                     .from('profiles')
                     .select('username')
                     .eq('user_id', team.created_by)
                     .maybeSingle();
-                creatorName = creatorProfile?.username || '未知';
+                creatorName = profile?.username || '未知';
             }
 
-            const { data: memberRows, error: membersError } = await supabase
+            const { data: memberRows } = await supabase
                 .from('team_members')
                 .select('user_id')
                 .eq('team_id', teamId);
 
-            if (membersError) {
-                console.error('获取成员失败', membersError);
-                return { ...team, creator_name: creatorName, members: [] };
+            const userIds = (memberRows || []).map(m => m.user_id);
+            let memberList = [];
+            if (userIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('user_id, username')
+                    .in('user_id', userIds);
+                memberList = (memberRows || []).map(m => {
+                    const p = profiles?.find(pr => pr.user_id === m.user_id);
+                    return { user_id: m.user_id, username: p?.username || '未知' };
+                });
             }
-
-            if (!memberRows || memberRows.length === 0) {
-                return { ...team, creator_name: creatorName, members: [] };
-            }
-
-            const userIds = memberRows.map(m => m.user_id);
-            const { data: profiles, error: profilesError } = await supabase
-                .from('profiles')
-                .select('user_id, username')
-                .in('user_id', userIds);
-
-            if (profilesError) {
-                console.error('获取成员资料失败', profilesError);
-            }
-
-            const memberList = (memberRows || []).map(m => {
-                const profile = profiles?.find(p => p.user_id === m.user_id);
-                return {
-                    user_id: m.user_id,
-                    username: profile?.username || '未知'
-                };
-            });
-
             return {
                 ...team,
                 creator_name: creatorName,
@@ -142,7 +124,37 @@
         }
     }
 
-    // 获取工单详情（包含发布者用户名）
+    // 获取指定团队的所有工单（含创建者用户名）
+    async function fetchTeamTickets(teamId) {
+        try {
+            const { data: tickets, error } = await supabase
+                .from('tickets')
+                .select('*')
+                .eq('team_id', teamId)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+
+            // 为每个工单获取创建者用户名
+            const withCreator = await Promise.all((tickets || []).map(async (t) => {
+                let creatorName = '未知';
+                if (t.created_by) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('username')
+                        .eq('user_id', t.created_by)
+                        .maybeSingle();
+                    creatorName = profile?.username || '未知';
+                }
+                return { ...t, creator_name: creatorName };
+            }));
+            return withCreator;
+        } catch (err) {
+            console.error('获取团队工单失败', err);
+            return [];
+        }
+    }
+
+    // 获取工单详情（包含创建者用户名）
     async function fetchTicketDetail(ticketId) {
         try {
             const { data: ticket, error } = await supabase
@@ -161,7 +173,6 @@
                     .maybeSingle();
                 creatorName = profile?.username || '未知';
             }
-
             return {
                 ...ticket,
                 creator_name: creatorName
@@ -174,6 +185,28 @@
 
     function isUserInTeam(teamId) {
         return userTeams.some(t => t.id === teamId);
+    }
+
+    // 切换工单状态
+    async function toggleTicketStatus(ticketId, newStatus) {
+        if (!currentUser) return;
+        try {
+            const { error } = await supabase
+                .from('tickets')
+                .update({ status: newStatus })
+                .eq('id', ticketId);
+            if (error) throw error;
+            await refreshUserData();
+            if (activeTab === 'teamDetail' && selectedTeamId) {
+                renderMainContent();
+            } else if (activeTab === 'ticketDetail' && selectedTicketId === ticketId) {
+                renderMainContent();
+            } else {
+                renderMainContent();
+            }
+        } catch (err) {
+            alert('切换状态失败: ' + err.message);
+        }
     }
 
     // ---------- 团队操作 ----------
@@ -322,6 +355,7 @@
             userTeams = [];
             allTeams = [];
             tickets = [];
+            myTickets = [];
             authView = 'login';
             selectedTeamId = null;
             selectedTicketId = null;
@@ -348,19 +382,78 @@
             userTeams = (memberRows || []).map(r => r.teams).filter(t => t);
         }
 
-        // 获取工单（所属团队的工单）
+        // 获取所属团队的工单（用于团队工单页）
         if (userTeams.length > 0) {
             const teamIds = userTeams.map(t => t.id);
             const { data: tix, error: tixError } = await supabase
                 .from('tickets')
-                .select('*, teams(name), created_by')
+                .select('*')
                 .in('team_id', teamIds)
                 .order('created_at', { ascending: false })
-                .limit(20);
-            if (tixError) console.error(tixError);
-            else tickets = tix || [];
+                .limit(50);
+            if (tixError) {
+                console.error(tixError);
+                tickets = [];
+            } else {
+                // 为每个工单获取创建者用户名
+                tickets = await Promise.all((tix || []).map(async (t) => {
+                    let creatorName = '未知';
+                    if (t.created_by) {
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('username')
+                            .eq('user_id', t.created_by)
+                            .maybeSingle();
+                        creatorName = profile?.username || '未知';
+                    }
+                    // 获取团队名称
+                    let teamName = '未知';
+                    if (t.team_id) {
+                        const { data: team } = await supabase
+                            .from('teams')
+                            .select('name')
+                            .eq('id', t.team_id)
+                            .single();
+                        teamName = team?.name || '未知';
+                    }
+                    return { ...t, creator_name: creatorName, teams: { name: teamName } };
+                }));
+            }
         } else {
             tickets = [];
+        }
+
+        // 获取当前用户创建的所有工单（用于“我的工单”）
+        const { data: myTix, error: myTixError } = await supabase
+            .from('tickets')
+            .select('*')
+            .eq('created_by', currentUser.id)
+            .order('created_at', { ascending: false });
+        if (myTixError) {
+            console.error(myTixError);
+            myTickets = [];
+        } else {
+            myTickets = await Promise.all((myTix || []).map(async (t) => {
+                let creatorName = '未知';
+                if (t.created_by) {
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('username')
+                        .eq('user_id', t.created_by)
+                        .maybeSingle();
+                    creatorName = profile?.username || '未知';
+                }
+                let teamName = '未知';
+                if (t.team_id) {
+                    const { data: team } = await supabase
+                        .from('teams')
+                        .select('name')
+                        .eq('id', t.team_id)
+                        .single();
+                    teamName = team?.name || '未知';
+                }
+                return { ...t, creator_name: creatorName, teams: { name: teamName } };
+            }));
         }
 
         // 获取所有团队
@@ -444,6 +537,7 @@
         userTeams = [];
         allTeams = [];
         tickets = [];
+        myTickets = [];
         authView = 'login';
         selectedTeamId = null;
         selectedTicketId = null;
@@ -538,6 +632,49 @@
         const isCreator = currentUser && team.created_by === currentUser.id;
         const memberList = team.members.map(m => `<div><i class="fa-regular fa-user"></i> ${escapeHtml(m.username)}</div>`).join('') || '<div>暂无成员</div>';
 
+        const teamTickets = await fetchTeamTickets(teamId);
+        const openTickets = teamTickets.filter(t => t.status === 'open');
+        const closedTickets = teamTickets.filter(t => t.status === 'closed');
+        const expanded = closedTicketsExpanded[teamId] || false;
+
+        const openTicketsHtml = openTickets.map(t => `
+            <div class="ticket-item" style="margin-bottom: 0.5rem; cursor: pointer;" data-ticket-id="${t.id}">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div>
+                        <div class="ticket-title">${escapeHtml(t.title)}</div>
+                        <div class="ticket-meta">
+                            <span>创建者: ${escapeHtml(t.creator_name)}</span>
+                            <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    ${isMember ? `
+                        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.toggleTicketStatus('${t.id}', 'closed')">
+                            <i class="fa-regular fa-circle-check"></i> 关闭
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('') || '<p class="empty-state">暂无开启的工单</p>';
+
+        const closedTicketsHtml = closedTickets.map(t => `
+            <div class="ticket-item" style="margin-bottom: 0.5rem; cursor: pointer;" data-ticket-id="${t.id}">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div>
+                        <div class="ticket-title">${escapeHtml(t.title)}</div>
+                        <div class="ticket-meta">
+                            <span>创建者: ${escapeHtml(t.creator_name)}</span>
+                            <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    ${isMember ? `
+                        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); window.toggleTicketStatus('${t.id}', 'open')">
+                            <i class="fa-regular fa-circle"></i> 开启
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('') || '<p class="empty-state">暂无关闭的工单</p>';
+
         return `
             <div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -556,7 +693,28 @@
                     <div style="background: #f8fafc; border-radius: 1.5rem; padding: 1.5rem; margin: 1rem 0;">
                         ${memberList}
                     </div>
-                    ${!isMember ? `<button class="btn btn-primary" id="join-from-detail">加入团队</button>` : '<span class="team-badge">已加入</span>'}
+                    ${!isMember ? `<button class="btn btn-primary" id="join-from-detail">加入团队</button>` : ''}
+
+                    <div style="margin-top: 2rem;">
+                        <h3>📋 团队工单</h3>
+                        <div style="margin-top: 1rem;">
+                            <h4>开启中 (${openTickets.length})</h4>
+                            <div style="margin-bottom: 1rem;">
+                                ${openTicketsHtml}
+                            </div>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+                                    <h4>已关闭 (${closedTickets.length})</h4>
+                                    <button class="btn btn-sm btn-outline" id="toggle-closed-tickets">
+                                        ${expanded ? '收起' : '展开'}
+                                    </button>
+                                </div>
+                                <div id="closed-tickets-list" style="display: ${expanded ? 'block' : 'none'};">
+                                    ${closedTicketsHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -579,12 +737,18 @@
         }
 
         const isCreator = currentUser && ticket.created_by === currentUser.id;
+        const isMember = isUserInTeam(ticket.team_id);
 
         return `
             <div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <button class="btn btn-outline" id="back-to-tickets">返回工单列表</button>
+                    <button class="btn btn-outline" id="back-to-tickets">返回</button>
                     <div>
+                        ${isMember ? `
+                            <button class="btn btn-outline" id="toggle-status-btn" style="margin-right: 0.5rem;">
+                                ${ticket.status === 'open' ? '<i class="fa-regular fa-circle-check"></i> 关闭' : '<i class="fa-regular fa-circle"></i> 开启'}
+                            </button>
+                        ` : ''}
                         ${isCreator ? `
                             <button class="btn btn-outline" id="edit-ticket-btn" style="margin-right: 0.5rem;"><i class="fa-regular fa-pen-to-square"></i> 编辑</button>
                             <button class="btn btn-danger" id="delete-ticket-btn"><i class="fa-regular fa-trash-can"></i> 删除</button>
@@ -597,7 +761,7 @@
                         <span><i class="fa-regular fa-user"></i> ${escapeHtml(ticket.creator_name)}</span>
                         <span><i class="fa-regular fa-clock"></i> ${new Date(ticket.created_at).toLocaleString()}</span>
                         <span class="team-badge">${escapeHtml(ticket.teams?.name || '未知团队')}</span>
-                        <span>状态: ${ticket.status}</span>
+                        <span>状态: ${ticket.status === 'open' ? '开启' : '关闭'}</span>
                     </div>
                     <div style="background: white; border-radius: 1.5rem; padding: 1.5rem; border: 1px solid #e2e8f0;">
                         <div class="markdown-body">${renderedContent}</div>
@@ -626,9 +790,10 @@
 
         const tabsHtml = `
             <div class="tabs">
-                <span class="tab ${activeTab === 'tickets' || activeTab === 'ticketDetail' ? 'active' : ''}" data-tab="tickets"><i class="fa-regular fa-list-alt"></i> 工单列表</span>
+                <span class="tab ${activeTab === 'tickets' || activeTab === 'ticketDetail' ? 'active' : ''}" data-tab="tickets"><i class="fa-regular fa-list-alt"></i> 团队工单</span>
+                <span class="tab ${activeTab === 'myTickets' ? 'active' : ''}" data-tab="myTickets"><i class="fa-regular fa-user"></i> 我的工单</span>
                 <span class="tab ${activeTab === 'submit' ? 'active' : ''}" data-tab="submit"><i class="fa-regular fa-pen-to-square"></i> 提交工单</span>
-                <span class="tab ${activeTab === 'teams' || activeTab === 'teamDetail' ? 'active' : ''}" data-tab="teams"><i class="fa-user"></i> 团队</span>
+                <span class="tab ${activeTab === 'teams' || activeTab === 'teamDetail' ? 'active' : ''}" data-tab="teams"><i class="fa-users"></i> 团队</span>
             </div>
         `;
 
@@ -644,7 +809,25 @@
                             <div class="ticket-title">${escapeHtml(t.title)}</div>
                             <div class="ticket-meta">
                                 <span class="team-badge">${escapeHtml(t.teams?.name || '未知团队')}</span>
-                                <span>状态: ${t.status}</span>
+                                <span>创建者: ${escapeHtml(t.creator_name)}</span>
+                                <span>状态: ${t.status === 'open' ? '开启' : '关闭'}</span>
+                                <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } else if (activeTab === 'myTickets') {
+            if (myTickets.length === 0) {
+                contentHtml = `<div class="empty-state"><p>您还没有创建过工单</p></div>`;
+            } else {
+                contentHtml = myTickets.map(t => `
+                    <div class="ticket-item" style="cursor: pointer;" data-ticket-id="${t.id}">
+                        <div>
+                            <div class="ticket-title">${escapeHtml(t.title)}</div>
+                            <div class="ticket-meta">
+                                <span class="team-badge">${escapeHtml(t.teams?.name || '未知团队')}</span>
+                                <span>状态: ${t.status === 'open' ? '开启' : '关闭'}</span>
                                 <span><i class="fa-regular fa-clock"></i> ${new Date(t.created_at).toLocaleDateString()}</span>
                             </div>
                         </div>
@@ -753,6 +936,22 @@
                             renderMainContent();
                         });
                     }
+                    const toggleBtn = document.getElementById('toggle-closed-tickets');
+                    if (toggleBtn) {
+                        toggleBtn.addEventListener('click', () => {
+                            closedTicketsExpanded[selectedTeamId] = !closedTicketsExpanded[selectedTeamId];
+                            renderMainContent();
+                        });
+                    }
+                    document.querySelectorAll('[data-ticket-id]').forEach(el => {
+                        el.addEventListener('click', (e) => {
+                            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+                            const ticketId = el.dataset.ticketId;
+                            selectedTicketId = ticketId;
+                            activeTab = 'ticketDetail';
+                            renderMainContent();
+                        });
+                    });
                 } catch (e) {
                     console.error('加载团队详情失败', e);
                     const detailContainer = document.getElementById('team-detail-container');
@@ -771,8 +970,10 @@
                     } else {
                         detailContainer.innerHTML = detailHtml;
                         document.getElementById('back-to-tickets')?.addEventListener('click', () => {
-                            activeTab = 'tickets';
-                            selectedTicketId = null;
+                            if (activeTab === 'ticketDetail') {
+                                activeTab = 'tickets';
+                                selectedTicketId = null;
+                            }
                             renderMainContent();
                         });
                         const deleteBtn = document.getElementById('delete-ticket-btn');
@@ -788,6 +989,14 @@
                                 renderMainContent();
                             });
                         }
+                        const toggleBtn = document.getElementById('toggle-status-btn');
+                        if (toggleBtn) {
+                            const ticket = await fetchTicketDetail(selectedTicketId);
+                            const newStatus = ticket.status === 'open' ? 'closed' : 'open';
+                            toggleBtn.addEventListener('click', () => {
+                                toggleTicketStatus(selectedTicketId, newStatus);
+                            });
+                        }
                     }
                 } catch (e) {
                     console.error('加载工单详情失败', e);
@@ -800,7 +1009,7 @@
 
         let finalHtml = headerHtml + tabsHtml + `<div style="margin-top: 2rem;">${contentHtml}</div>`;
 
-        // 模态框处理
+        // 模态框处理（与之前相同）
         if (modalState === 'changePassword') {
             finalHtml += `
                 <div class="modal-overlay" id="modal-overlay">
@@ -850,7 +1059,7 @@
         }
 
         if (modalState === 'editTicket') {
-            const currentTicket = tickets.find(t => t.id === selectedTicketId) || { title: '', content_md: '' };
+            const currentTicket = tickets.find(t => t.id === selectedTicketId) || myTickets.find(t => t.id === selectedTicketId) || { title: '', content_md: '' };
             finalHtml += `
                 <div class="modal-overlay" id="modal-overlay">
                     <div class="modal-card" style="max-width: 600px;">
@@ -874,7 +1083,7 @@
 
         appEl.innerHTML = finalHtml;
 
-        // ---------- 全局事件绑定 ----------
+        // 全局事件绑定
         document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
         document.getElementById('change-password-btn')?.addEventListener('click', showChangePasswordModal);
 
@@ -920,7 +1129,7 @@
                 const name = document.getElementById('new-team-name')?.value;
                 createTeam(name);
             });
-        } else if (activeTab === 'tickets') {
+        } else if (activeTab === 'tickets' || activeTab === 'myTickets') {
             document.querySelectorAll('[data-ticket-id]').forEach(el => {
                 el.addEventListener('click', () => {
                     const ticketId = el.dataset.ticketId;
@@ -931,7 +1140,7 @@
             });
         }
 
-        // ---------- 模态框事件绑定 ----------
+        // 模态框事件
         if (modalState === 'changePassword') {
             document.getElementById('cancel-modal')?.addEventListener('click', () => {
                 modalState = null;
@@ -984,6 +1193,8 @@
         });
     }
 
+    window.toggleTicketStatus = toggleTicketStatus;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
         currentUser = session?.user ?? null;
         if (currentUser) refreshUserData(); else renderAuthScreen();
@@ -995,6 +1206,7 @@
             userTeams = [];
             allTeams = [];
             tickets = [];
+            myTickets = [];
             destroyMarkdownEditor();
             renderAuthScreen();
         }
