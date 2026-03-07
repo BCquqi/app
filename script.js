@@ -793,7 +793,7 @@
                 <span class="tab ${activeTab === 'tickets' || activeTab === 'ticketDetail' ? 'active' : ''}" data-tab="tickets"><i class="fa-regular fa-list-alt"></i> 团队工单</span>
                 <span class="tab ${activeTab === 'myTickets' ? 'active' : ''}" data-tab="myTickets"><i class="fa-regular fa-user"></i> 我的工单</span>
                 <span class="tab ${activeTab === 'submit' ? 'active' : ''}" data-tab="submit"><i class="fa-regular fa-pen-to-square"></i> 提交工单</span>
-                <span class="tab ${activeTab === 'teams' || activeTab === 'teamDetail' ? 'active' : ''}" data-tab="teams"><i class="fa-users"></i> 团队</span>
+                <span class="tab ${activeTab === 'teams' || activeTab === 'teamDetail' ? 'active' : ''}" data-tab="teams"><i class="fa fa-users"></i> 团队广场</span>
             </div>
         `;
 
