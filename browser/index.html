@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -106,6 +106,14 @@
             background-color: #f1f3f4;
             padding: 0 10px;
             border-bottom: 1px solid #dadce0;
+            overflow-x: auto;
+            scrollbar-width: thin;
+            align-items: center;
+        }
+        
+        .tabs-container {
+            display: flex;
+            flex: 1;
         }
         
         .tab {
@@ -117,8 +125,9 @@
             display: flex;
             align-items: center;
             max-width: 200px;
-            min-width: 150px;
+            min-width: 130px;
             position: relative;
+            user-select: none;
         }
         
         .tab.active {
@@ -138,39 +147,18 @@
             margin-left: 8px;
             color: #5f6368;
             font-size: 16px;
-            width: 16px;
-            height: 16px;
-            display: flex;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
         }
         
         .tab-close:hover {
             background-color: #e8eaed;
-        }
-        
-        .content-area {
-            flex: 1;
-            background-color: #fff;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        #website-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        
-        .loading-bar {
-            height: 3px;
-            width: 0;
-            background-color: #1a73e8;
-            position: absolute;
-            top: 0;
-            left: 0;
-            transition: width 0.3s;
         }
         
         .new-tab-btn {
@@ -183,14 +171,58 @@
             color: #5f6368;
             cursor: pointer;
             border-radius: 50%;
-            margin: 5px;
+            margin-left: 5px;
+            flex-shrink: 0;
         }
         
         .new-tab-btn:hover {
             background-color: #e8eaed;
         }
         
-        .welcome-screen {
+        .content-area {
+            flex: 1;
+            background-color: #fff;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .tab-panes {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .tab-pane {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: none;
+            overflow: auto;
+        }
+        
+        .tab-pane.active-pane {
+            display: block;
+        }
+        
+        .loading-bar {
+            height: 3px;
+            width: 0;
+            background-color: #1a73e8;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 100;
+            transition: width 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .website-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .welcome-screen, .error-message {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -199,6 +231,7 @@
             padding: 20px;
             text-align: center;
             color: #5f6368;
+            background-color: #fff;
         }
         
         .welcome-icon {
@@ -241,27 +274,6 @@
             border-color: #1a73e8;
         }
         
-        .status-bar {
-            padding: 5px 15px;
-            background-color: #f1f3f4;
-            border-top: 1px solid #dadce0;
-            font-size: 12px;
-            color: #5f6368;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .error-message {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            padding: 20px;
-            text-align: center;
-            color: #5f6368;
-        }
-        
         .error-icon {
             font-size: 64px;
             margin-bottom: 20px;
@@ -280,6 +292,16 @@
             margin-bottom: 30px;
         }
         
+        .status-bar {
+            padding: 5px 15px;
+            background-color: #f1f3f4;
+            border-top: 1px solid #dadce0;
+            font-size: 12px;
+            color: #5f6368;
+            display: flex;
+            justify-content: space-between;
+        }
+        
         @media (max-width: 768px) {
             .browser-container {
                 height: 95vh;
@@ -291,7 +313,7 @@
             }
             
             .tab {
-                min-width: 120px;
+                min-width: 100px;
             }
         }
     </style>
@@ -300,236 +322,535 @@
     <div class="browser-container">
         <div class="browser-header">
             <div class="navigation-controls">
-                <button class="nav-btn" id="back-btn" title="back">←</button>
-                <button class="nav-btn" id="forward-btn" title="front">→</button>
-                <button class="nav-btn" id="refresh-btn" title="refresh">↻</button>
+                <button class="nav-btn" id="back-btn" title="Back">←</button>
+                <button class="nav-btn" id="forward-btn" title="Forward">→</button>
+                <button class="nav-btn" id="refresh-btn" title="Refresh">↻</button>
             </div>
             <div class="address-bar">
                 <span class="security-icon">🔒</span>
-                <input type="text" id="url-input" placeholder="Cookie Browser" autocomplete="off">
+                <input type="text" id="url-input" placeholder="Enter URL and press Enter" autocomplete="off">
             </div>
         </div>
         
         <div class="browser-content">
             <div class="tab-bar">
-                <div class="tab active">
-                    <span class="tab-title">New Tab</span>
-                    <span class="tab-close">×</span>
-                </div>
+                <div class="tabs-container" id="tabs-container"></div>
                 <div class="new-tab-btn" id="new-tab-btn">+</div>
             </div>
             
             <div class="content-area">
                 <div class="loading-bar" id="loading-bar"></div>
-                
-                <div class="welcome-screen" id="welcome-screen">
-                    <div class="welcome-icon">🌐</div>
-                    <h2 class="welcome-title">Cookie Browser</h2>
-                    <p class="welcome-text">Cookie websites: </p>
-                    
-                    <div class="quick-links">
-                        <div class="quick-link" data-url="https://www.codercoookie.github.io">CoderCoookie</div>
-                        <div class="quick-link" data-url="https://www.codercoookie.github.io/workspace">CookieWorkspace</div>
-                        <div class="quick-link" data-url="https://www.codercoookie.github.io/blog">CookieBlog</div>
-                        <div class="quick-link" data-url="https://hydro.ac/d/CookieOJ/">CookieOJ</div>
-                        <div class="quick-link" data-url="https://vijos.org/d/AuroraOJ/">AuroraOJ</div>
-                    </div>
-                </div>
-                
-                <div class="error-message" id="error-message">
-                    <div class="error-icon">⚠️</div>
-                    <h2 class="error-title">无法访问此网站</h2>
-                    <p class="error-text">由于浏览器的安全限制，此网页可能无法在模拟器中显示。请尝试访问其他网站，或使用实际浏览器打开此网页。</p>
-                    <div class="quick-links">
-                        <div class="quick-link" id="try-again-btn">重试</div>
-                        <div class="quick-link" id="back-to-home-btn">返回主页</div>
-                    </div>
-                </div>
-                
-                <iframe id="website-frame" style="display: none;"></iframe>
+                <div class="tab-panes" id="tab-panes-container"></div>
             </div>
         </div>
         
         <div class="status-bar">
-            <span id="status-text">ready</span>
-            <span>Cookie Browser</span>
+            <span id="status-text">Ready</span>
+            <span>Use for reading website only. No guarantee of proper functioning of interactive webpages. Access request may be intercepted because of the website protection policy. </span>
         </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const urlInput = document.getElementById('url-input');
-            const websiteFrame = document.getElementById('website-frame');
-            const welcomeScreen = document.getElementById('welcome-screen');
-            const errorMessage = document.getElementById('error-message');
-            const backBtn = document.getElementById('back-btn');
-            const forwardBtn = document.getElementById('forward-btn');
-            const refreshBtn = document.getElementById('refresh-btn');
-            const loadingBar = document.getElementById('loading-bar');
-            const statusText = document.getElementById('status-text');
-            const quickLinks = document.querySelectorAll('.quick-link');
-            const newTabBtn = document.getElementById('new-tab-btn');
-            const tryAgainBtn = document.getElementById('try-again-btn');
-            const backToHomeBtn = document.getElementById('back-to-home-btn');
-            
-            let currentUrl = '';
-            let isLoading = false;
-            let hasError = false;
-            
-            // 处理URL输入
-            urlInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    navigateToUrl();
-                }
-            });
-            
-            // 导航到指定URL
-            function navigateToUrl() {
-                let url = urlInput.value.trim();
+        // ---------- Multi-tab Browser Core ----------
+        class TabBrowser {
+            constructor() {
+                this.tabs = [];           // stores tab objects { id, title, url, paneId, type } type: 'welcome' or 'iframe'
+                this.activeTabId = null;
+                this.nextId = 1;
+                this.loadingTimeout = null;
                 
-                // 如果没有输入内容，不执行任何操作
-                if (!url) return;
+                // DOM elements
+                this.tabsContainer = document.getElementById('tabs-container');
+                this.panesContainer = document.getElementById('tab-panes-container');
+                this.urlInput = document.getElementById('url-input');
+                this.statusText = document.getElementById('status-text');
+                this.loadingBar = document.getElementById('loading-bar');
                 
-                // 如果URL没有协议，添加https://
-                if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                    url = 'https://' + url;
-                }
+                // Buttons
+                this.backBtn = document.getElementById('back-btn');
+                this.forwardBtn = document.getElementById('forward-btn');
+                this.refreshBtn = document.getElementById('refresh-btn');
+                this.newTabBtn = document.getElementById('new-tab-btn');
                 
-                currentUrl = url;
-                
-                // 显示加载状态
-                isLoading = true;
-                hasError = false;
-                loadingBar.style.width = '30%';
-                statusText.textContent = '正在加载...';
-                
-                // 隐藏欢迎屏幕和错误消息，显示iframe
-                welcomeScreen.style.display = 'none';
-                errorMessage.style.display = 'none';
-                websiteFrame.style.display = 'block';
-                
-                // 设置iframe的src
-                websiteFrame.src = url;
-                
-                // 更新标签页标题
-                updateTabTitle(url);
+                this.initEventListeners();
+                this.createDefaultTab();   // start with a default tab
             }
             
-            // 模拟加载过程
-            websiteFrame.addEventListener('load', function() {
-                isLoading = false;
-                loadingBar.style.width = '100%';
-                statusText.textContent = '完成';
-                
-                // 短暂显示加载完成状态后隐藏加载条
-                setTimeout(() => {
-                    loadingBar.style.width = '0';
-                }, 500);
-                
-                // 更新地址栏显示
-                urlInput.value = currentUrl;
-            });
+            // Generate unique ID
+            generateId() {
+                return this.nextId++;
+            }
             
-            // 处理iframe加载错误
-            websiteFrame.addEventListener('error', function() {
-                isLoading = false;
-                loadingBar.style.width = '0';
-                statusText.textContent = '加载失败';
+            // Create pane DOM structure for a tab
+            createPaneStructure(tabId, title) {
+                const pane = document.createElement('div');
+                pane.className = 'tab-pane';
+                pane.setAttribute('data-tab-id', tabId);
                 
-                // 显示错误消息
-                hasError = true;
-                websiteFrame.style.display = 'none';
-                errorMessage.style.display = 'flex';
-            });
+                // Welcome screen
+                const welcomeDiv = document.createElement('div');
+                welcomeDiv.className = 'welcome-screen';
+                welcomeDiv.innerHTML = `
+                    <div class="welcome-icon">🌐</div>
+                    <h2 class="welcome-title">Cookie Browser</h2>
+                    <p class="welcome-text">Version 1.1.0</p>
+                `;
+                
+                // iframe container
+                const iframe = document.createElement('iframe');
+                iframe.className = 'website-frame';
+                iframe.style.display = 'none';
+                iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals');
+                iframe.setAttribute('allow', 'fullscreen');
+                
+                // Error screen
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.style.display = 'none';
+                errorDiv.innerHTML = `
+                    <div class="error-icon">⚠️</div>
+                    <h2 class="error-title">Unable to access this site</h2>
+                    <p class="error-text">Due to network issues, security restrictions, or the site does not support embedding, the page could not be loaded. You may retry or go back to home.</p>
+                    <div class="quick-links">
+                        <div class="quick-link retry-link">Retry</div>
+                        <div class="quick-link home-link">Home</div>
+                    </div>
+                `;
+                
+                pane.appendChild(welcomeDiv);
+                pane.appendChild(iframe);
+                pane.appendChild(errorDiv);
+                this.panesContainer.appendChild(pane);
+                
+                return { pane, welcomeDiv, iframe, errorDiv };
+            }
             
-            // 浏览器控制按钮功能
-            backBtn.addEventListener('click', function() {
-                if (!hasError && websiteFrame.contentWindow && websiteFrame.contentWindow.history.length > 0) {
-                    websiteFrame.contentWindow.history.back();
+            // Create tab button in tab bar
+            createTabButton(tabId, title) {
+                const tabDiv = document.createElement('div');
+                tabDiv.className = 'tab';
+                tabDiv.setAttribute('data-tab-id', tabId);
+                tabDiv.innerHTML = `
+                    <span class="tab-title">${this.escapeHtml(title)}</span>
+                    <span class="tab-close">×</span>
+                `;
+                
+                // Switch tab on click (except close button)
+                tabDiv.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('tab-close')) return;
+                    this.switchTab(tabId);
+                });
+                
+                // Close button event
+                const closeBtn = tabDiv.querySelector('.tab-close');
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.closeTab(tabId);
+                });
+                
+                return tabDiv;
+            }
+            
+            // Update tab title in UI
+            updateTabTitle(tabId, newTitle) {
+                const tab = this.tabs.find(t => t.id === tabId);
+                if (!tab) return;
+                tab.title = newTitle;
+                const tabElement = this.tabsContainer.querySelector(`.tab[data-tab-id="${tabId}"]`);
+                if (tabElement) {
+                    const titleSpan = tabElement.querySelector('.tab-title');
+                    if (titleSpan) titleSpan.textContent = this.escapeHtml(newTitle);
                 }
-            });
+            }
             
-            forwardBtn.addEventListener('click', function() {
-                if (!hasError && websiteFrame.contentWindow && websiteFrame.contentWindow.history.length > 0) {
-                    websiteFrame.contentWindow.history.forward();
+            // Get DOM elements associated with a tab
+            getTabElements(tabId) {
+                const pane = this.panesContainer.querySelector(`.tab-pane[data-tab-id="${tabId}"]`);
+                if (!pane) return null;
+                return {
+                    pane,
+                    welcomeDiv: pane.querySelector('.welcome-screen'),
+                    iframe: pane.querySelector('.website-frame'),
+                    errorDiv: pane.querySelector('.error-message')
+                };
+            }
+            
+            // Show welcome screen for a tab, hide iframe/error
+            showWelcome(tabId) {
+                const elements = this.getTabElements(tabId);
+                if (!elements) return;
+                elements.welcomeDiv.style.display = 'flex';
+                elements.iframe.style.display = 'none';
+                elements.errorDiv.style.display = 'none';
+                
+                const tab = this.tabs.find(t => t.id === tabId);
+                if (tab) {
+                    tab.type = 'welcome';
+                    tab.url = '';
+                    this.updateTabTitle(tabId, 'New Tab');
                 }
-            });
+                
+                if (this.activeTabId === tabId) {
+                    this.urlInput.value = '';
+                    this.statusText.textContent = 'Ready';
+                }
+            }
             
-            refreshBtn.addEventListener('click', function() {
-                if (currentUrl && !hasError) {
-                    websiteFrame.src = websiteFrame.src;
+            // Navigate a tab to a URL
+            navigateTab(tabId, url) {
+                if (!url) return false;
+                let finalUrl = url.trim();
+                if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                    finalUrl = 'https://' + finalUrl;
+                }
+                
+                const tab = this.tabs.find(t => t.id === tabId);
+                if (!tab) return false;
+                
+                const elements = this.getTabElements(tabId);
+                if (!elements) return false;
+                
+                elements.welcomeDiv.style.display = 'none';
+                elements.errorDiv.style.display = 'none';
+                elements.iframe.style.display = 'block';
+                
+                if (this.activeTabId === tabId) {
+                    this.startLoading();
+                }
+                
+                const iframe = elements.iframe;
+                const loadHandler = () => {
+                    if (this.activeTabId === tabId) {
+                        this.finishLoading();
+                        this.statusText.textContent = 'Complete';
+                    }
+                    try {
+                        let docTitle = iframe.contentDocument?.title;
+                        if (docTitle && docTitle.trim()) {
+                            let shortTitle = docTitle.length > 20 ? docTitle.substring(0, 20) + '...' : docTitle;
+                            this.updateTabTitle(tabId, shortTitle);
+                        } else {
+                            let displayUrl = finalUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+                            if (displayUrl.length > 25) displayUrl = displayUrl.substring(0, 22) + '...';
+                            this.updateTabTitle(tabId, displayUrl);
+                        }
+                    } catch(e) {
+                        let displayUrl = finalUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+                        if (displayUrl.length > 25) displayUrl = displayUrl.substring(0, 22) + '...';
+                        this.updateTabTitle(tabId, displayUrl);
+                    }
+                    iframe.removeEventListener('load', loadHandler);
+                    iframe.removeEventListener('error', errorHandler);
+                };
+                
+                const errorHandler = () => {
+                    if (this.activeTabId === tabId) {
+                        this.finishLoading();
+                        this.statusText.textContent = 'Load failed';
+                    }
+                    elements.welcomeDiv.style.display = 'none';
+                    elements.iframe.style.display = 'none';
+                    elements.errorDiv.style.display = 'flex';
                     
-                    // 显示加载状态
-                    isLoading = true;
-                    loadingBar.style.width = '30%';
-                    statusText.textContent = '正在刷新...';
-                } else if (currentUrl && hasError) {
-                    // 如果当前有错误，重新加载
-                    navigateToUrl();
+                    tab.type = 'error';
+                    this.updateTabTitle(tabId, 'Load failed');
+                    iframe.removeEventListener('load', loadHandler);
+                    iframe.removeEventListener('error', errorHandler);
+                };
+                
+                iframe.removeEventListener('load', loadHandler);
+                iframe.removeEventListener('error', errorHandler);
+                iframe.addEventListener('load', loadHandler);
+                iframe.addEventListener('error', errorHandler);
+                
+                iframe.src = finalUrl;
+                tab.type = 'iframe';
+                tab.url = finalUrl;
+                
+                if (this.activeTabId === tabId) {
+                    this.urlInput.value = finalUrl;
                 }
-            });
-            
-            // 快速链接
-            quickLinks.forEach(link => {
-                if (link.id !== 'try-again-btn' && link.id !== 'back-to-home-btn') {
-                    link.addEventListener('click', function() {
-                        const url = this.getAttribute('data-url');
-                        urlInput.value = url;
-                        navigateToUrl();
-                    });
-                }
-            });
-            
-            // 新标签页按钮
-            newTabBtn.addEventListener('click', function() {
-                // 重置为欢迎屏幕
-                welcomeScreen.style.display = 'flex';
-                websiteFrame.style.display = 'none';
-                errorMessage.style.display = 'none';
-                urlInput.value = '';
-                currentUrl = '';
-                hasError = false;
-                updateTabTitle('New Tab');
-                statusText.textContent = 'ready';
-            });
-            
-            // 重试按钮
-            tryAgainBtn.addEventListener('click', function() {
-                if (currentUrl) {
-                    navigateToUrl();
-                }
-            });
-            
-            // 返回主页按钮
-            backToHomeBtn.addEventListener('click', function() {
-                welcomeScreen.style.display = 'flex';
-                websiteFrame.style.display = 'none';
-                errorMessage.style.display = 'none';
-                urlInput.value = '';
-                currentUrl = '';
-                hasError = false;
-                updateTabTitle('New Tab');
-                statusText.textContent = 'Ready';
-            });
-            
-            // 更新标签页标题
-            function updateTabTitle(title) {
-                const activeTab = document.querySelector('.tab.active .tab-title');
-                // 简化URL显示
-                if (title.startsWith('https://')) {
-                    title = title.replace('https://', '');
-                }
-                if (title.startsWith('www.')) {
-                    title = title.replace('www.', '');
-                }
-                if (title.length > 20) {
-                    title = title.substring(0, 20) + '...';
-                }
-                activeTab.textContent = title || 'New Tab';
+                
+                let shortUrl = finalUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+                if (shortUrl.length > 25) shortUrl = shortUrl.substring(0, 22) + '...';
+                this.updateTabTitle(tabId, shortUrl);
+                
+                return true;
             }
             
-            // 初始聚焦地址栏
-            urlInput.focus();
+            // Handle error page actions (Retry / Home)
+            handleErrorActions(e) {
+                const target = e.target;
+                if (!target.classList || !target.classList.contains('quick-link')) return;
+                const activeTab = this.getActiveTab();
+                if (!activeTab) return;
+                
+                const text = target.innerText;
+                if (text === 'Retry' || target.classList.contains('retry-link')) {
+                    const tabData = this.tabs.find(t => t.id === activeTab.id);
+                    if (tabData && tabData.url) {
+                        this.navigateTab(activeTab.id, tabData.url);
+                    } else {
+                        this.showWelcome(activeTab.id);
+                    }
+                } else if (text === 'Home' || target.classList.contains('home-link')) {
+                    this.showWelcome(activeTab.id);
+                }
+            }
+            
+            // Handle quick links on welcome screen
+            handleQuickLinks(e) {
+                const target = e.target;
+                if (!target.classList || !target.classList.contains('quick-link')) return;
+                if (target.innerText === 'Retry' || target.innerText === 'Home') return;
+                const url = target.getAttribute('data-url');
+                if (!url) return;
+                const activeTab = this.getActiveTab();
+                if (activeTab) {
+                    this.navigateTab(activeTab.id, url);
+                }
+            }
+            
+            // Refresh current active tab
+            refreshActiveTab() {
+                const activeTab = this.getActiveTab();
+                if (!activeTab) return;
+                const elements = this.getTabElements(activeTab.id);
+                if (!elements) return;
+                const tabData = this.tabs.find(t => t.id === activeTab.id);
+                if (tabData.type === 'iframe' && tabData.url) {
+                    const iframe = elements.iframe;
+                    if (iframe) {
+                        this.startLoading();
+                        iframe.src = iframe.src;
+                    }
+                } else if (tabData.type === 'error' && tabData.url) {
+                    this.navigateTab(activeTab.id, tabData.url);
+                } else {
+                    this.showWelcome(activeTab.id);
+                }
+            }
+            
+            // Go back in iframe history
+            goBack() {
+                const activeTab = this.getActiveTab();
+                if (!activeTab) return;
+                const elements = this.getTabElements(activeTab.id);
+                if (elements && elements.iframe && elements.iframe.contentWindow && elements.iframe.contentWindow.history) {
+                    try {
+                        elements.iframe.contentWindow.history.back();
+                    } catch(e) { /* cross-origin ignore */ }
+                }
+            }
+            
+            // Go forward in iframe history
+            goForward() {
+                const activeTab = this.getActiveTab();
+                if (!activeTab) return;
+                const elements = this.getTabElements(activeTab.id);
+                if (elements && elements.iframe && elements.iframe.contentWindow && elements.iframe.contentWindow.history) {
+                    try {
+                        elements.iframe.contentWindow.history.forward();
+                    } catch(e) { }
+                }
+            }
+            
+            // Loading animation
+            startLoading() {
+                if (this.loadingTimeout) clearTimeout(this.loadingTimeout);
+                this.loadingBar.style.width = '60%';
+                this.statusText.textContent = 'Loading...';
+            }
+            
+            finishLoading() {
+                this.loadingBar.style.width = '100%';
+                setTimeout(() => {
+                    this.loadingBar.style.width = '0';
+                }, 300);
+                if (this.activeTabId) {
+                    const tab = this.tabs.find(t => t.id === this.activeTabId);
+                    if (tab && tab.type !== 'welcome') this.statusText.textContent = 'Complete';
+                    else this.statusText.textContent = 'Ready';
+                }
+            }
+            
+            // Create default tab (welcome screen)
+            createDefaultTab() {
+                this.createTab(null, 'New Tab', true);
+            }
+            
+            // Create a new tab, optionally with a URL
+            createTab(url = null, title = 'New Tab', isWelcome = true) {
+                const id = this.generateId();
+                const { pane, welcomeDiv, iframe, errorDiv } = this.createPaneStructure(id, title);
+                
+                const newTab = {
+                    id: id,
+                    title: title,
+                    url: url || '',
+                    type: isWelcome ? 'welcome' : (url ? 'iframe' : 'welcome'),
+                    paneId: id
+                };
+                this.tabs.push(newTab);
+                
+                const tabButton = this.createTabButton(id, title);
+                this.tabsContainer.appendChild(tabButton);
+                
+                if (url && !isWelcome) {
+                    newTab.type = 'iframe';
+                    newTab.url = url;
+                    setTimeout(() => {
+                        this.navigateTab(id, url);
+                    }, 10);
+                } else {
+                    this.showWelcome(id);
+                }
+                
+                this.switchTab(id);
+                return id;
+            }
+            
+            // Close a tab
+            closeTab(tabId) {
+                if (this.tabs.length === 1) {
+                    this.createDefaultTab();
+                    this.removeTabById(tabId);
+                } else {
+                    this.removeTabById(tabId);
+                }
+            }
+            
+            // Remove tab by ID (internal)
+            removeTabById(tabId) {
+                const index = this.tabs.findIndex(t => t.id === tabId);
+                if (index === -1) return;
+                
+                const isActive = (this.activeTabId === tabId);
+                const tabElement = this.tabsContainer.querySelector(`.tab[data-tab-id="${tabId}"]`);
+                if (tabElement) tabElement.remove();
+                const paneElement = this.panesContainer.querySelector(`.tab-pane[data-tab-id="${tabId}"]`);
+                if (paneElement) paneElement.remove();
+                
+                this.tabs.splice(index, 1);
+                
+                if (isActive) {
+                    let newActiveIndex = index;
+                    if (newActiveIndex >= this.tabs.length) newActiveIndex = this.tabs.length - 1;
+                    if (newActiveIndex >= 0) {
+                        this.switchTab(this.tabs[newActiveIndex].id);
+                    } else if (this.tabs.length > 0) {
+                        this.switchTab(this.tabs[0].id);
+                    } else {
+                        this.createDefaultTab();
+                    }
+                }
+            }
+            
+            // Switch active tab
+            switchTab(tabId) {
+                const tab = this.tabs.find(t => t.id === tabId);
+                if (!tab) return false;
+                
+                document.querySelectorAll('.tab').forEach(tabEl => {
+                    tabEl.classList.remove('active');
+                });
+                const newActiveTabEl = this.tabsContainer.querySelector(`.tab[data-tab-id="${tabId}"]`);
+                if (newActiveTabEl) newActiveTabEl.classList.add('active');
+                
+                document.querySelectorAll('.tab-pane').forEach(pane => {
+                    pane.classList.remove('active-pane');
+                });
+                const activePane = this.panesContainer.querySelector(`.tab-pane[data-tab-id="${tabId}"]`);
+                if (activePane) activePane.classList.add('active-pane');
+                
+                this.activeTabId = tabId;
+                
+                if (tab.type === 'welcome') {
+                    this.urlInput.value = '';
+                    this.statusText.textContent = 'Ready';
+                } else if (tab.url) {
+                    this.urlInput.value = tab.url;
+                    this.statusText.textContent = 'Ready';
+                } else {
+                    this.urlInput.value = '';
+                }
+                
+                this.finishLoading();
+                return true;
+            }
+            
+            // Get current active tab object
+            getActiveTab() {
+                return this.tabs.find(t => t.id === this.activeTabId) || null;
+            }
+            
+            // Handle address bar navigation for active tab
+            addressNavigation() {
+                let url = this.urlInput.value.trim();
+                if (!url) return;
+                const activeTab = this.getActiveTab();
+                if (activeTab) {
+                    this.navigateTab(activeTab.id, url);
+                }
+            }
+            
+            // Escape HTML to prevent XSS
+            escapeHtml(str) {
+                if (!str) return '';
+                return str.replace(/[&<>]/g, function(m) {
+                    if (m === '&') return '&amp;';
+                    if (m === '<') return '&lt;';
+                    if (m === '>') return '&gt;';
+                    return m;
+                });
+            }
+            
+            // Global event binding
+            initEventListeners() {
+                this.urlInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.addressNavigation();
+                    }
+                });
+                
+                this.newTabBtn.addEventListener('click', () => {
+                    this.createTab(null, 'New Tab', true);
+                });
+                
+                this.backBtn.addEventListener('click', () => this.goBack());
+                this.forwardBtn.addEventListener('click', () => this.goForward());
+                this.refreshBtn.addEventListener('click', () => this.refreshActiveTab());
+                
+                // Global delegation for quick links and error actions
+                document.body.addEventListener('click', (e) => {
+                    if (e.target.classList && e.target.classList.contains('quick-link') && !e.target.closest('.error-message')) {
+                        const url = e.target.getAttribute('data-url');
+                        if (url) {
+                            const activeTab = this.getActiveTab();
+                            if (activeTab) this.navigateTab(activeTab.id, url);
+                            e.preventDefault();
+                        }
+                    }
+                    if (e.target.classList && (e.target.classList.contains('retry-link') || e.target.classList.contains('home-link') || e.target.innerText === 'Retry' || e.target.innerText === 'Home')) {
+                        const activeTab = this.getActiveTab();
+                        if (activeTab) {
+                            if (e.target.innerText === 'Retry' || e.target.classList.contains('retry-link')) {
+                                const tabData = this.tabs.find(t => t.id === activeTab.id);
+                                if (tabData && tabData.url) this.navigateTab(activeTab.id, tabData.url);
+                                else this.showWelcome(activeTab.id);
+                            } else if (e.target.innerText === 'Home' || e.target.classList.contains('home-link')) {
+                                this.showWelcome(activeTab.id);
+                            }
+                        }
+                        e.preventDefault();
+                    }
+                });
+            }
+        }
+        
+        // Start the browser
+        window.addEventListener('DOMContentLoaded', () => {
+            window.cookieBrowser = new TabBrowser();
         });
     </script>
 </body>

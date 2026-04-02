@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Excel 智能翻译工具 | 多列翻译与导出</title>
+    <title>Excel Translator</title>
     <link rel="stylesheet" href="style.css">
     <!-- 引入 SheetJS 核心库用于 Excel 解析与导出 -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -11,31 +11,31 @@
 <body>
     <div class="app-container">
         <header>
-            <h1>📄 Excel 多语言翻译工作台</h1>
-            <p>上传 .xlsx / .xls 文件 → 多次翻译操作 → 导出完整表格</p>
+            <h1>Excel Translator</h1>
+            <p>Upload .xlsx / .xls files → translate step by step → download the excel. </p>
         </header>
 
         <div class="toolbar">
             <div class="upload-area">
-                <label for="excel-input" class="btn btn-primary">📂 上传 Excel 文件</label>
+                <label for="excel-input" class="btn btn-primary">Upload</label>
                 <input type="file" id="excel-input" accept=".xlsx, .xls, .csv" style="display: none;">
-                <span id="file-name" class="file-info">未选择文件</span>
-                <button id="reset-data-btn" class="btn btn-secondary" disabled>⟳ 重置到原始数据</button>
+                <span id="file-name" class="file-info">No file chosen</span>
+                <button id="reset-data-btn" class="btn btn-secondary" disabled>⟳ reset</button>
             </div>
             <div class="export-area">
-                <button id="export-btn" class="btn btn-success" disabled>💾 导出 Excel 表格</button>
+                <button id="export-btn" class="btn btn-success" disabled>Download</button>
             </div>
         </div>
 
         <!-- 数据预览卡片 -->
         <div class="preview-card">
             <div class="card-header">
-                <span>📊 数据预览 (最多显示 200 行，滚动查看)</span>
-                <span id="data-dimension" class="dimension-badge">未加载数据</span>
+                <span>Data preview</span>
+                <span id="data-dimension" class="dimension-badge">No data updated</span>
             </div>
             <div class="table-wrapper">
                 <div id="table-preview" class="preview-table-container">
-                    <div class="placeholder-text">👈 请先上传 Excel 文件</div>
+                    <div class="placeholder-text">Please upload an excel file first. </div>
                 </div>
             </div>
         </div>
@@ -43,59 +43,59 @@
         <!-- 翻译操作面板 -->
         <div class="operation-panel">
             <div class="card-header">
-                <span>🌐 添加翻译操作</span>
-                <span class="badge-info">支持多次操作，顺序执行</span>
+                <span>New translation command</span>
+                <span class="badge-info">Support multiple operations</span>
             </div>
             <div class="operation-form">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>📌 源列 (第 i 列)</label>
+                        <label>Source column</label>
                         <input type="number" id="source-col" min="1" step="1" value="1" class="col-input">
-                        <small>列号从 1 开始</small>
+                        <small>Start from 1</small>
                     </div>
                     <div class="form-group">
-                        <label>🌍 源语言 (a语言)</label>
+                        <label>Source language</label>
                         <select id="source-lang" class="lang-select">
-                            <option value="en">英语 (English)</option>
-                            <option value="zh" selected>中文 (简体)</option>
-                            <option value="ja">日语 (日本語)</option>
-                            <option value="ko">韩语 (한국어)</option>
-                            <option value="fr">法语 (Français)</option>
-                            <option value="de">德语 (Deutsch)</option>
-                            <option value="es">西班牙语 (Español)</option>
-                            <option value="ru">俄语 (Русский)</option>
-                            <option value="it">意大利语 (Italiano)</option>
+                            <option value="en">English</option>
+                            <option value="zh" selected>简体中文</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                            <option value="es">Español</option>
+                            <option value="ru">Русский</option>
+                            <option value="it">Italiano</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>➡️ 目标语言 (b语言)</label>
+                        <label>Target language</label>
                         <select id="target-lang" class="lang-select">
-                            <option value="en">英语 (English)</option>
-                            <option value="zh" selected>中文 (简体)</option>
-                            <option value="ja">日语 (日本語)</option>
-                            <option value="ko">韩语 (한국어)</option>
-                            <option value="fr">法语 (Français)</option>
-                            <option value="de">德语 (Deutsch)</option>
-                            <option value="es">西班牙语 (Español)</option>
-                            <option value="ru">俄语 (Русский)</option>
-                            <option value="it">意大利语 (Italiano)</option>
+                            <option value="en">English</option>
+                            <option value="zh" selected>简体中文</option>
+                            <option value="ja">日本語</option>
+                            <option value="ko">한국어</option>
+                            <option value="fr">Français</option>
+                            <option value="de">Deutsch</option>
+                            <option value="es">Español</option>
+                            <option value="ru">Русский</option>
+                            <option value="it">Italiano</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>📝 目标列 (第 j 列)</label>
+                        <label>Target column</label>
                         <input type="number" id="target-col" min="1" step="1" value="2" class="col-input">
-                        <small>结果将填入此列 (可覆盖)</small>
+                        <small>Overridable result</small>
                     </div>
                     <div class="form-group action-group">
-                        <button id="execute-translate-btn" class="btn btn-accent" disabled>⚡ 执行翻译操作</button>
+                        <button id="execute-translate-btn" class="btn btn-accent" disabled>⚡ translate</button>
                     </div>
                 </div>
             </div>
             <!-- 操作记录/日志区 -->
             <div class="log-section">
-                <div class="log-header">📋 操作记录</div>
+                <div class="log-header">Operation log</div>
                 <div id="operation-log" class="log-list">
-                    <div class="log-empty">暂无操作，执行翻译后会显示记录</div>
+                    <div class="log-empty">No operations yet. </div>
                 </div>
                 <div id="progress-info" class="progress-info" style="display: none;"></div>
             </div>

@@ -23,8 +23,8 @@
     // 辅助函数 - 更新预览表格
     function renderTable() {
         if (!currentData || currentData.length === 0) {
-            tablePreviewDiv.innerHTML = '<div class="placeholder-text">📭 暂无数据，请先上传 Excel 文件</div>';
-            dimensionSpan.textContent = '无数据';
+            tablePreviewDiv.innerHTML = '<div class="placeholder-text">No data now, please upload an excel file first.</div>';
+            dimensionSpan.textContent = 'no data';
             return;
         }
         const maxRows = Math.min(currentData.length, 200);
@@ -33,7 +33,7 @@
         // 表头 (列号标识)
         html += '<thead><tr>';
         for (let c = 0; c < maxCols; c++) {
-            html += `<th style="background:#f1f5f9;">第${c+1}列</th>`;
+            html += `<th style="background:#f1f5f9;">Column ${c+1}</th>`;
         }
         html += '</tr></thead><tbody>';
         for (let r = 0; r < maxRows; r++) {
@@ -46,9 +46,9 @@
             html += '</tr>';
         }
         html += '</tbody></table></div>';
-        if (currentData.length > 200) html += `<div style="padding:0.5rem; text-align:center; background:#faf9fe;">仅展示前200行，共 ${currentData.length} 行</div>`;
+        if (currentData.length > 200) html += `<div style="padding:0.5rem; text-align:center; background:#faf9fe;">Only show 200 lines, ${currentData.length} lines in sum. </div>`;
         tablePreviewDiv.innerHTML = html;
-        dimensionSpan.textContent = `${currentData.length} 行 × ${currentData[0]?.length || 0} 列`;
+        dimensionSpan.textContent = `${currentData.length} line × ${currentData[0]?.length || 0} column`;
     }
 
     // 简易防XSS
@@ -103,7 +103,7 @@
                 currentData[i].push('');
             }
         }
-        addLog(`📐 目标列 ${colIndex+1} 超出原列数，已自动扩展列至 ${colIndex+1} 列`, false);
+        addLog(`Target column ${colIndex+1} is out of source column, moved to line ${colIndex+1} . `, false);
         renderTable();
         return true;
     }
@@ -122,7 +122,7 @@
             const timeoutId = setTimeout(() => controller.abort(), 8000);
             const response = await fetch(url, { signal: controller.signal });
             clearTimeout(timeoutId);
-            if (!response.ok) throw new Error('API响应错误');
+            if (!response.ok) throw new Error('API Wrong');
             const data = await response.json();
             let translated = data?.responseData?.translatedText;
             if (translated && translated !== trimmed) {
@@ -132,17 +132,17 @@
             }
             return text;
         } catch (err) {
-            console.warn(`翻译失败: ${text}`, err);
-            addLog(`⚠️ 单词 "${text.slice(0, 30)}..." 翻译失败: ${err.message}，保留原文`, true);
+            console.warn(`Failed: ${text}`, err);
+            addLog(`⚠️ Word "${text.slice(0, 30)}..." Translated failed: ${err.message}, keep the raw text. `, true);
             return text;
         }
     }
 
     // 批量翻译整列 (并发控制)
     async function translateColumn(sourceColIdx, targetColIdx, sourceLang, targetLang) {
-        if (!currentData.length) throw new Error('无数据');
+        if (!currentData.length) throw new Error('no data');
         if (sourceColIdx < 0 || sourceColIdx >= currentData[0].length) {
-            throw new Error(`源列 ${sourceColIdx+1} 超出当前数据范围 (共 ${currentData[0].length} 列)`);
+            throw new Error(`Source column ${sourceColIdx+1} is out of the data limitation ( ${currentData[0].length} lines in sum)`);
         }
         ensureColumnExists(targetColIdx);
         
@@ -161,7 +161,7 @@
         let completed = 0;
         let errorFlag = false;
         
-        setProgressText(`准备翻译 ${rows} 个单元格 (源语言:${sourceLang} → 目标:${targetLang})`, true);
+        setProgressText(`Preparing to translate ${rows} boxes. (Source language:${sourceLang} → Target language:${targetLang})`, true);
         
         async function worker(startIdx) {
             for (let i = startIdx; i < rows; i += CONCURRENCY) {
@@ -178,12 +178,12 @@
                 } catch (err) {
                     errorFlag = true;
                     results[i] = txt;
-                    addLog(`❌ 翻译中断: ${err.message}`, true);
+                    addLog(`❌ interrupted: ${err.message}`, true);
                     break;
                 } finally {
                     completed++;
                     if (completed % 5 === 0 || completed === rows) {
-                        setProgressText(`翻译进度: ${completed}/${rows}  (${Math.round(completed/rows*100)}%)`);
+                        setProgressText(`progress: ${completed}/${rows}  (${Math.round(completed/rows*100)}%)`);
                     }
                 }
             }
@@ -196,7 +196,7 @@
         await Promise.all(workersPromises);
         
         if (errorFlag) {
-            throw new Error('翻译过程中出现错误，部分结果可能保留原文');
+            throw new Error('Something went wrong during the translation. The excel will keep the raw texts. ');
         }
         // 写回目标列
         for (let i = 0; i < rows; i++) {
@@ -204,7 +204,7 @@
                 currentData[i][targetColIdx] = results[i];
             }
         }
-        setProgressText(`✅ 翻译完成！已更新第 ${targetColIdx+1} 列，共 ${rows} 条`, false);
+        setProgressText(`✅ Finished in ${targetColIdx+1} column, ${rows} rows in sum. `, false);
         setTimeout(() => setProgressText('', false), 2000);
         return rows;
     }
@@ -212,11 +212,11 @@
     // 执行翻译操作 (封装)
     async function runTranslation() {
         if (isProcessing) {
-            addLog('⏸️ 已有翻译任务进行中，请稍后', true);
+            addLog('⏸️ Translating...', true);
             return;
         }
         if (!currentData || currentData.length === 0) {
-            addLog('❌ 请先上传 Excel 文件', true);
+            addLog('❌ No excel data. ', true);
             return;
         }
         let sourceCol = parseInt(sourceColInput.value, 10);
@@ -225,18 +225,18 @@
         const targetLang = targetLangSelect.value;
         
         if (isNaN(sourceCol) || sourceCol < 1) {
-            addLog('❌ 源列号必须为正整数', true);
+            addLog('❌ Invalid source number', true);
             return;
         }
         if (isNaN(targetCol) || targetCol < 1) {
-            addLog('❌ 目标列号必须为正整数', true);
+            addLog('❌ Invalid target number', true);
             return;
         }
         const sourceColIdx = sourceCol - 1;
         const targetColIdx = targetCol - 1;
         
         if (sourceColIdx >= currentData[0].length) {
-            addLog(`❌ 源列 ${sourceCol} 超出数据最大列数 ${currentData[0].length}`, true);
+            addLog(`❌ Source column ${sourceCol} is out of the max column ${currentData[0].length}`, true);
             return;
         }
         
@@ -247,10 +247,10 @@
         
         try {
             const affectedRows = await translateColumn(sourceColIdx, targetColIdx, sourceLang, targetLang);
-            addLog(`🌍 翻译操作: 第${sourceCol}列 (${sourceLang} → ${targetLang}) 结果写入第${targetCol}列，影响 ${affectedRows} 行`);
+            addLog(`🌍 Translate: Column ${sourceCol} (${sourceLang} → ${targetLang}) to Column ${targetCol}, affected ${affectedRows} lines. `);
             renderTable();
         } catch (err) {
-            addLog(`❌ 操作失败: ${err.message}`, true);
+            addLog(`❌ failed: ${err.message}`, true);
             console.error(err);
         } finally {
             isProcessing = false;
@@ -266,28 +266,28 @@
     // 重置为原始数据
     function resetToOriginal() {
         if (!originalData.length) {
-            addLog('没有可恢复的原始数据', true);
+            addLog('Nothing to reset', true);
             return;
         }
         currentData = JSON.parse(JSON.stringify(originalData));
         renderTable();
-        addLog('🔄 已重置数据到初始上传状态', false);
+        addLog('🔄 Reseted', false);
     }
     
     // 导出Excel
     function exportToExcel() {
         if (!currentData || currentData.length === 0) {
-            addLog('无数据可导出', true);
+            addLog('Nothing to download', true);
             return;
         }
         try {
             const ws = XLSX.utils.aoa_to_sheet(currentData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '翻译结果');
+            XLSX.utils.book_append_sheet(wb, ws, 'Result');
             XLSX.writeFile(wb, `translated_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`);
-            addLog('📎 导出成功，文件已下载', false);
+            addLog('📎 Success to download. ', false);
         } catch(e) {
-            addLog(`导出失败: ${e.message}`, true);
+            addLog(`Failed to download: ${e.message}`, true);
         }
     }
     
@@ -302,7 +302,7 @@
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
             if (!rows || rows.length === 0) {
-                addLog('文件无有效数据', true);
+                addLog('No valid data. ', true);
                 return;
             }
             // 标准化二维数组，保证每行列数一致
@@ -316,7 +316,7 @@
             originalData = JSON.parse(JSON.stringify(normalized));
             currentData = JSON.parse(JSON.stringify(normalized));
             renderTable();
-            addLog(`✅ 成功加载文件: ${file.name} (${currentData.length}行 x ${maxLen}列)`);
+            addLog(`✅ Successfully upload file: ${file.name} (${currentData.length} lines x ${maxLen} columns)`);
             exportBtn.disabled = false;
             resetBtn.disabled = false;
             // 清空旧日志可选，但保留历史
@@ -324,7 +324,7 @@
                 operationLogDiv.innerHTML = '';
             }
         };
-        reader.onerror = () => addLog('文件读取失败', true);
+        reader.onerror = () => addLog('Failed to read file', true);
         reader.readAsArrayBuffer(file);
     }
     
@@ -333,7 +333,7 @@
         if (e.target.files && e.target.files[0]) {
             handleFileUpload(e.target.files[0]);
         } else {
-            fileNameSpan.textContent = '未选择文件';
+            fileNameSpan.textContent = 'No file chosen';
         }
     });
     document.querySelector('.upload-area .btn-primary').addEventListener('click', () => excelInput.click());

@@ -696,7 +696,7 @@
                     ${!isMember ? `<button class="btn btn-primary" id="join-from-detail">加入团队</button>` : ''}
 
                     <div style="margin-top: 2rem;">
-                        <h3>📋 团队工单</h3>
+                        <h3>团队工单</h3>
                         <div style="margin-top: 1rem;">
                             <h4>开启中 (${openTickets.length})</h4>
                             <div style="margin-bottom: 1rem;">
@@ -779,7 +779,7 @@
 
         const headerHtml = `
             <div class="header">
-                <div class="logo"><h1>🎫 工单·团队</h1></div>
+                <div class="logo"><h1>工单·团队</h1></div>
                 <div class="user-info">
                     <i class="fa-regular fa-circle-user" style="color:#2563eb;"></i> ${displayName}
                     <button class="btn btn-ghost" id="change-password-btn" title="修改密码"><i class="fa-solid fa-gear"></i></button>
@@ -840,7 +840,7 @@
 
             contentHtml = `
                 <div style="max-width: 800px;">
-                    <h3>📝 提交新工单</h3>
+                    <h3>提交新工单</h3>
                     <div class="input-group">
                         <label>标题</label>
                         <input type="text" id="ticket-title" placeholder="例如：服务器无法连接">
@@ -888,12 +888,12 @@
 
             contentHtml = `
                 <div>
-                    <h3>✅ 我的团队</h3>
+                    <h3>我的团队</h3>
                     <div class="team-list-wrapper" style="margin-bottom: 2rem;">
                         ${joinedHtml}
                     </div>
                     <div class="divider"></div>
-                    <h3>🌐 所有团队</h3>
+                    <h3>所有团队</h3>
                     <div class="team-list-wrapper">
                         ${otherHtml}
                     </div>
